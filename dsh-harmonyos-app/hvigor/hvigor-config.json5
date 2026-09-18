@@ -10,5 +10,16 @@
   },
   "logging": {
     "level": "info"
+  },
+  "pluginRepository": {
+    "registry": "https://repo.harmonyos.com/npm/",
+    "registries": {
+      "@ohos": {
+        "registry": "https://repo.harmonyos.com/npm/",
+        "scopes": [
+          "@ohos"
+        ]
+      }
+    }
   }
 }
