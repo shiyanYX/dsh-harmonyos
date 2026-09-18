@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>DSH HarmonyOS — 沉浸光感仿真</title>
+<style>
+/* ===== Design Tokens ===== */
+:root {
+  --bg:#0a0a0f; --bg2:#121218; --bg3:#1a1a24; --bg4:#22222e;
+  --surf:#16161f; --ubub:#1e3a5f; --tc:#151520;
+  --t1:#e8e8ed; --t2:#9898a6; --t3:#5c5c6e; --t4:#4a4a5a;
+  --blu:#4a9eff; --grn:#34d399; --ylw:#fbbf24; --red:#ef4444; --pur:#a78bfa;
+  --bdr:rgba(255,255,255,0.06); --bdr2:rgba(255,255,255,0.1);
+  --sg:linear-gradient(135deg,#4a9eff 0%,#3b82f6 100%);
+  --pbg:rgba(255,255,255,0.04); --pbd:rgba(255,255,255,0.08);
+  /* Immersive Material Tokens (CSS approximations) */
+  --mat-ultra-thin:rgba(18,18,24,0.55); backdrop-filter:blur(30px) saturate(1.4);
+  --mat-thin:rgba(18,18,24,0.68); backdrop-filter:blur(40px) saturate(1.6);
+  --mat-regular:rgba(18,18,24,0.82); backdrop-filter:blur(50px) saturate(1.8);
+  --mat-thick:rgba(14,14,20,0.88); backdrop-filter:blur(60px) saturate(2.0);
+  --mat-ultra-thick:rgba(10,10,16,0.92); backdrop-filter:blur(80px) saturate(2.2);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'PingFang SC','HarmonyOS Sans SC',system-ui,sans-serif;background:#050508;color:var(--t1);overflow:hidden;height:100vh;display:flex;justify-content:center;align-items:center}
+
+/* ===== Phone Frame ===== */
+.ph{width:390px;height:844px;background:var(--bg);border-radius:44px;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,0.06),0 30px 100px rgba(0,0,0,0.7);display:flex;flex-direction:column;position:relative;flex-shrink:0}
+
+/* ===== Screens ===== */
+.screen{display:none;flex-direction:column;height:100%;position:relative}
+.screen.active{display:flex}
+
+/* ===== Status Bar ===== */
+.sb{height:54px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 32px 8px;font-size:15px;font-weight:600;flex-shrink:0;z-index:10}
+.sb-r{display:flex;gap:6px;align-items:center}
+.sb-r svg{width:16px;height:16px;fill:var(--t1)}
+
+/* ===== Title Bar — ULTRA_THIN Material (floating elements, not solid bar) ===== */
+/* HdsNavigation MINI mode: back btn + title + menu icons float over content */
+/* ULTRA_THIN material is nearly invisible — just a subtle translucent layer */
+.tb{height:52px;display:flex;align-items:center;padding:0 4px;position:relative;z-index:10;flex-shrink:0;
+  background:rgba(10,10,15,0.2);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2)}
+.tb .bt{width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:22px;border:none;background:none;flex-shrink:0;transition:transform 0.18s cubic-bezier(0.34,1.56,0.64,1)}
+.tb .bt:active{transform:scale(0.88);background:rgba(255,255,255,0.06)}
+.tb .bt svg{width:22px;height:22px;stroke:var(--t1);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tb .tt{flex:1;text-align:center;font-size:17px;font-weight:600;letter-spacing:-0.3px}
+.tb-plain{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+
+/* ===== Section Header ===== */
+.sec{padding:16px 20px 8px;font-size:12px;font-weight:600;color:var(--t4);text-transform:uppercase;letter-spacing:0.5px}
+
+/* ===== Session List ===== */
+.sg{margin:0 12px;background:var(--bg3);border-radius:14px;overflow:hidden;border:1px solid var(--bdr)}
+.sg-head{display:flex;align-items:center;padding:12px 14px;cursor:pointer;gap:10px;transition:background 0.15s}
+.sg-head:active{background:rgba(255,255,255,0.03)}
+.sg-icon{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#4a9eff 0%,#7c5cfc 100%);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.sg-name{flex:1;font-size:15px;font-weight:500}
+.sg-count{font-size:12px;color:var(--t3)}
+.sg-arrow{width:16px;height:16px;color:var(--t3);transition:transform 0.2s}
+.sg-arrow.open{transform:rotate(90deg)}
+.sg-sessions{border-top:1px solid var(--bdr)}
+.sg-sessions.hidden{display:none}
+.si{display:flex;align-items:center;padding:11px 14px;gap:10px;cursor:pointer;transition:background 0.12s}
+.si:active{background:rgba(255,255,255,0.03)}
+.si-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.si-dot.on{background:var(--grn)}
+.si-dot.off{background:var(--t3)}
+.si-info{flex:1;min-width:0}
+.si-title{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.si-meta{font-size:12px;color:var(--t3);margin-top:2px;display:flex;gap:8px;align-items:center}
+.si-msgs{font-size:11px;color:var(--t3);background:var(--pbg);padding:2px 7px;border-radius:8px;flex-shrink:0}
+.si-fav{color:var(--ylw);font-size:14px;flex-shrink:0;margin-left:2px}
+
+/* ===== FAB — Point Light Pulse ===== */
+.fab{position:absolute;bottom:110px;right:20px;width:52px;height:52px;border-radius:26px;background:var(--sg);box-shadow:0 4px 20px rgba(74,158,255,0.35);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;border:none;color:white;font-size:28px;transition:transform 0.15s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.15s}
+.fab:active{transform:scale(0.88);box-shadow:0 2px 10px rgba(74,158,255,0.3)}
+.fab::after{content:'';position:absolute;inset:-4px;border-radius:30px;background:radial-gradient(circle,rgba(74,158,255,0.18) 0%,transparent 70%);animation:fabGlow 2.5s ease-in-out infinite;pointer-events:none}
+@keyframes fabGlow{0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:.9;transform:scale(1.12)}}
+
+/* ===== Search Bar — THIN Material ===== */
+.sbar{margin:8px 12px;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;
+  background:rgba(255,255,255,0.05);backdrop-filter:blur(40px) saturate(1.6);-webkit-backdrop-filter:blur(40px) saturate(1.6);
+  border:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.15s}
+.sbar:active{background:rgba(255,255,255,0.08)}
+.sbar svg{width:16px;height:16px;color:var(--t3);flex-shrink:0}
+.sbar span{color:var(--t3);font-size:14px}
+
+/* ===== Favorites ===== */
+.fav-card{margin:0 12px 8px;background:var(--bg3);border-radius:14px;border:1px solid var(--bdr);overflow:hidden}
+.fav-item{display:flex;align-items:center;padding:12px 14px;gap:10px;cursor:pointer;transition:background 0.12s}
+.fav-item+.fav-item{border-top:1px solid var(--bdr)}
+.fav-item:active{background:rgba(255,255,255,0.03)}
+.fav-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.fav-info{flex:1;min-width:0}
+.fav-title{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fav-server{font-size:12px;color:var(--t3);margin-top:2px}
+.fav-star{color:var(--ylw);font-size:16px;flex-shrink:0}
+
+/* ===== Settings ===== */
+.set-group{margin:8px 12px;background:var(--bg3);border-radius:14px;border:1px solid var(--bdr);overflow:hidden}
+.set-item{display:flex;align-items:center;padding:13px 14px;gap:12px;cursor:pointer;transition:background 0.12s}
+.set-item+.set-item{border-top:1px solid var(--bdr)}
+.set-item:active{background:rgba(255,255,255,0.03)}
+.set-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.set-label{flex:1;font-size:15px}
+.set-val{font-size:13px;color:var(--t3)}
+.set-arrow{color:var(--t3);font-size:13px}
+.set-desc{padding:4px 14px 10px;font-size:12px;color:var(--t4);line-height:17px}
+
+/* ===== Floating Tab Bar — THIN Material + Point Light ===== */
+.tab-wrap{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);z-index:30;pointer-events:auto}
+.tab-bar{display:flex;height:52px;border-radius:26px;padding:0 6px;gap:2px;
+  background:rgba(30,30,40,0.68);backdrop-filter:blur(40px) saturate(1.8);-webkit-backdrop-filter:blur(40px) saturate(1.8);
+  border:1px solid rgba(255,255,255,0.08);
+  box-shadow:0 4px 24px rgba(0,0,0,0.35),inset 0 0.5px 0 rgba(255,255,255,0.08)}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--t3);border:none;background:none;font-family:inherit;padding:0 14px;min-width:64px;border-radius:22px;transition:all 0.18s cubic-bezier(0.34,1.56,0.64,1)}
+.tab-item:active{transform:scale(0.88)}
+.tab-item.active{color:var(--blu);background:rgba(74,158,255,0.1)}
+.tab-item svg{width:22px;height:22px}
+.tab-item span{font-size:10px;font-weight:500}
+/* Point Light effect on active tab */
+.tab-item.active::before{content:'';position:absolute;inset:-2px;border-radius:24px;background:radial-gradient(circle,rgba(74,158,255,0.15) 0%,transparent 70%);pointer-events:none;animation:tabLight 3s ease-in-out infinite}
+@keyframes tabLight{0%,100%{opacity:.3} 50%{opacity:.7}}
+
+/* Home Indicator */
+.hi{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:31;height:5px;width:134px;border-radius:3px;background:rgba(255,255,255,0.15);pointer-events:none}
+
+/* ===== Server Detail ===== */
+.sd-layout{flex:1;display:flex;overflow:hidden}
+.sd-nav{width:72px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--bdr);display:flex;flex-direction:column;align-items:center;padding-top:12px;gap:4px;overflow-y:auto}
+.sd-nav-btn{width:56px;height:56px;border-radius:14px;border:none;background:transparent;color:var(--t2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;font-size:9px;font-family:inherit;transition:all 0.15s}
+.sd-nav-btn.active{background:rgba(74,158,255,0.12);color:var(--blu)}
+.sd-nav-btn svg{width:20px;height:20px}
+.sd-content{flex:1;overflow-y:auto;padding:16px}
+.sd-card{background:var(--bg3);border-radius:14px;border:1px solid var(--bdr);padding:16px;margin-bottom:12px}
+.sd-card h4{font-size:14px;font-weight:600;margin-bottom:10px;color:var(--t2)}
+.sd-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0}
+.sd-row+.sd-row{border-top:1px solid var(--bdr)}
+.sd-row .k{font-size:13px;color:var(--t2)}
+.sd-row .v{font-size:13px;font-weight:500}
+.sd-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+.sd-dot.on{background:var(--grn)}
+.sd-model-list{margin-top:8px}
+.sd-model-item{display:flex;align-items:center;padding:10px 0;gap:10px;font-size:13px;color:var(--t2)}
+.sd-model-item+.sd-model-item{border-top:1px solid var(--bdr)}
+.sd-model-check{margin-left:auto;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--bdr2);display:flex;align-items:center;justify-content:center}
+.sd-model-check.sel{border-color:var(--blu);background:rgba(74,158,255,0.15)}
+.sd-model-check.sel::after{content:'✓';color:var(--blu);font-size:11px}
+
+/* ===== Chat ===== */
+.msgs{flex:1;overflow-y:auto;padding:8px 16px 12px;display:flex;flex-direction:column;gap:16px}
+.msgs::-webkit-scrollbar{width:3px}
+.msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+.mz{text-align:center;padding:8px 0}
+.mz span{font-size:13px;color:var(--t3);background:rgba(255,255,255,0.03);padding:4px 14px;border-radius:12px;border:1px solid var(--bdr)}
+.ur{display:flex;justify-content:flex-end}
+.ur .bu{max-width:78%;background:var(--ubub);border-radius:20px 20px 4px 20px;padding:12px 16px;font-size:15px;line-height:22px;word-break:break-word}
+.as{display:flex;gap:10px;align-items:flex-start}
+.as .av{width:30px;height:30px;border-radius:15px;background:linear-gradient(135deg,#4a9eff,#7c5cfc);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;margin-top:2px}
+.as .ct{flex:1;min-width:0;font-size:15px;line-height:23px;word-break:break-word}
+.as .ct p{margin-bottom:10px}
+.as .ct p:last-child{margin-bottom:0}
+.as .ct code{background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:13px;color:var(--blu)}
+.as .ct strong{font-weight:600}
+.as .ct ul,.as .ct ol{margin:8px 0;padding-left:20px}
+.as .ct li{margin:4px 0;line-height:21px}
+
+/* Tool Card */
+.tc{background:var(--tc);border:1px solid var(--bdr);border-radius:12px;padding:12px 14px;margin:10px 0}
+.tch{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.tci{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.tci.r{background:rgba(74,158,255,0.15)}
+.tci.w{background:rgba(52,211,153,0.15)}
+.tci.b{background:rgba(167,139,250,0.15)}
+.tcn{font-size:13px;font-weight:500;color:var(--t2)}
+.tcp{font-size:12px;font-family:monospace;color:var(--t3);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcc{background:rgba(0,0,0,0.3);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:12px;line-height:17px;color:var(--t2);overflow-x:auto;white-space:pre}
+.tcc .kw{color:var(--pur)}
+.tcc .fn{color:var(--blu)}
+.tcc .st{color:var(--grn)}
+.tcc .cm{color:var(--t4)}
+.tcs{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--grn)}
+.tcs .dot{width:6px;height:6px;border-radius:3px;background:currentColor}
+
+/* Cursor */
+.cr{display:inline-block;width:2px;height:18px;background:var(--blu);border-radius:1px;animation:bk 1s ease-in-out infinite;vertical-align:text-bottom;margin-left:2px}
+@keyframes bk{0%,100%{opacity:1} 50%{opacity:0}}
+
+/* ===== Composer — REGULAR Material ===== */
+.comp{padding:0 12px 8px;flex-shrink:0}
+.card{width:100%;background:rgba(20,20,28,0.82);backdrop-filter:blur(50px) saturate(1.8);-webkit-backdrop-filter:blur(50px) saturate(1.8);
+  border:1px solid rgba(255,255,255,0.07);border-radius:20px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s}
+.card:focus-within{border-color:rgba(74,158,255,0.3);box-shadow:0 0 0 1px rgba(74,158,255,0.1)}
+.ip{width:100%;min-height:42px;max-height:160px;padding:12px 16px 4px;background:transparent;border:none;outline:none;color:var(--t1);font-size:15px;line-height:22px;font-family:inherit;resize:none}
+.ip::placeholder{color:var(--t3)}
+.tr{display:flex;align-items:center;padding:4px 8px 8px;gap:2px}
+.tl{display:flex;align-items:center;gap:2px;flex:1}
+.trr{display:flex;align-items:center;gap:2px}
+
+/* Tool Buttons — THIN Material + Press Elastic */
+.tb2{height:32px;min-width:32px;display:flex;align-items:center;justify-content:center;padding:0 8px;border:none;background:transparent;color:var(--t2);border-radius:16px;cursor:pointer;font-size:13px;font-family:inherit;transition:all 0.18s cubic-bezier(0.34,1.56,0.64,1);gap:4px;white-space:nowrap;position:relative}
+.tb2:active{transform:scale(0.88);background:rgba(255,255,255,0.08)}
+.tb2 svg{width:16px;height:16px;flex-shrink:0}
+.tb2.pm{color:var(--ylw)}
+.tb2.mp{background:rgba(255,255,255,0.05);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);border:1px solid rgba(255,255,255,0.08);padding:0 10px;gap:5px;font-weight:500}
+.tb2.mp:hover{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15);color:var(--t1)}
+.ctx{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--t3);padding:0 6px}
+.ctx svg{width:14px;height:14px}
+
+/* Send Button — Point Light + Elastic */
+.sbtn{width:32px;height:32px;border-radius:16px;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden;transition:transform 0.18s cubic-bezier(0.34,1.56,0.64,1)}
+.sbtn:active{transform:scale(0.85)}
+.sbtn.on{background:var(--sg);box-shadow:0 2px 12px rgba(74,158,255,0.3)}
+.sbtn.on:hover{box-shadow:0 2px 18px rgba(74,158,255,0.45)}
+.sbtn.off{background:rgba(255,255,255,0.04);cursor:default}
+.sbtn.off:active{transform:none}
+.sbtn svg{width:16px;height:16px}
+.sbtn.on::after{content:'';position:absolute;inset:-4px;border-radius:20px;background:radial-gradient(circle,rgba(74,158,255,0.2) 0%,transparent 70%);animation:pl 2s ease-in-out infinite;pointer-events:none}
+@keyframes pl{0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)}}
+
+/* Stats */
+.sts{display:flex;align-items:center;justify-content:center;gap:4px;padding:8px 16px 4px;font-size:12px;color:var(--t4);flex-shrink:0}
+.sts .sp{width:3px;height:3px;border-radius:50%;background:var(--t4);margin:0 4px}
+
+/* ===== Approval Card — ULTRA_THICK Material ===== */
+.approval{display:none;width:calc(100% - 24px);margin:0 auto 8px;border-radius:14px;padding:12px 14px;flex-shrink:0;
+  background:rgba(40,35,20,0.88);backdrop-filter:blur(80px) saturate(2.2);-webkit-backdrop-filter:blur(80px) saturate(2.2);
+  border:1px solid rgba(251,191,36,0.15);
+  box-shadow:0 8px 32px rgba(0,0,0,0.4),inset 0 0.5px 0 rgba(255,255,255,0.06);
+  animation:dialogIn 0.35s cubic-bezier(0.34,1.56,0.64,1)}
+.approval.show{display:block}
+@keyframes dialogIn{from{opacity:0;transform:translateY(20px) scale(0.95)} to{opacity:1;transform:translateY(0) scale(1)}}
+/* Edge Glow */
+.approval::before{content:'';position:absolute;inset:-1px;border-radius:15px;padding:1px;background:linear-gradient(135deg,rgba(251,191,36,0.2) 0%,transparent 50%,rgba(251,191,36,0.1) 100%);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;animation:edgeGlow 3s ease-in-out infinite}
+@keyframes edgeGlow{0%,100%{opacity:.3} 50%{opacity:.8}}
+.app-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.app-h svg{width:16px;height:16px;color:var(--ylw)}
+.app-h span{font-size:13px;color:var(--ylw);font-weight:500}
+.app-path{font-size:12px;font-family:monospace;color:var(--t3);margin-bottom:10px}
+.app-a{display:flex;gap:8px;justify-content:flex-end}
+.app-a button{padding:6px 18px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--t2);font-size:13px;font-family:inherit;cursor:pointer;transition:all 0.15s}
+.app-a button:active{transform:scale(0.92)}
+.app-a button:hover{background:rgba(255,255,255,0.06)}
+.app-a .ok{background:rgba(74,158,255,0.12);border-color:rgba(74,158,255,0.25);color:var(--blu)}
+
+/* ===== Dropdowns — THICK Material + Edge Glow + Deformation ===== */
+.dov{display:none;position:absolute;inset:0;z-index:100}
+.dov.show{display:block}
+.dm{position:absolute;border-radius:14px;padding:6px;min-width:200px;z-index:101;
+  background:rgba(22,22,30,0.88);backdrop-filter:blur(60px) saturate(2.0);-webkit-backdrop-filter:blur(60px) saturate(2.0);
+  border:1px solid rgba(255,255,255,0.08);
+  box-shadow:0 12px 40px rgba(0,0,0,0.5),inset 0 0.5px 0 rgba(255,255,255,0.06);
+  animation:menuIn 0.3s cubic-bezier(0.34,1.56,0.64,1)}
+/* Edge Glow on menus */
+.dm::before{content:'';position:absolute;inset:-1px;border-radius:15px;padding:1px;background:linear-gradient(135deg,rgba(255,255,255,0.1) 0%,transparent 40%,rgba(255,255,255,0.05) 100%);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;animation:edgeGlow 3s ease-in-out infinite}
+@keyframes menuIn{from{opacity:0;transform:translateY(8px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)}}
+.di{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;font-size:14px;color:var(--t2);border:none;background:transparent;width:100%;text-align:left;font-family:inherit;transition:all 0.12s}
+.di:hover{background:rgba(255,255,255,0.06);color:var(--t1)}
+.di:active{transform:scale(0.97)}
+.di.sel{color:var(--blu)}
+.di .ck{margin-left:auto;width:16px;height:16px;opacity:0}
+.di.sel .ck{opacity:1}
+.dsep{height:1px;background:rgba(255,255,255,0.06);margin:4px 8px}
+.dh{padding:6px 12px 4px;font-size:11px;font-weight:600;color:var(--t4);text-transform:uppercase;letter-spacing:0.5px}
+.perm-dot{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.perm-dot.r{background:rgba(255,255,255,0.06)}
+.perm-dot.w{background:rgba(74,158,255,0.12)}
+.perm-dot.f{background:rgba(239,68,68,0.12)}
+</style>
+</head>
+<body>
+
+<div class="ph">
+
+<!-- ===== SCREEN: WORKSPACE ===== -->
+<div class="screen active" id="scr-workspace">
+  <div class="sb">
+    <span>14:32</span>
+    <div class="sb-r">
+      <svg viewBox="0 0 16 16"><path d="M1 11.5L8 4l7 7.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+      <svg viewBox="0 0 16 16"><rect x="1" y="6" width="3" height="8" rx="0.5" fill="currentColor" opacity="0.3"/><rect x="5" y="4" width="3" height="10" rx="0.5" fill="currentColor" opacity="0.6"/><rect x="9" y="2" width="3" height="12" rx="0.5" fill="currentColor" opacity="0.8"/><rect x="13" y="1" width="3" height="13" rx="0.5" fill="currentColor"/></svg>
+      <svg viewBox="0 0 20 16"><rect x="0.5" y="1" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1" fill="none"/><rect x="2" y="3" width="11" height="7" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/></svg>
+    </div>
+  </div>
+  <div class="tb">
+    <div class="tt" style="padding-left:20px">DSH · 服务器</div>
+  </div>
+  <div class="sbar" onclick="alert('调用 session/search API')">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4 4" stroke-linecap="round"/></svg>
+    <span>搜索会话...</span>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding-bottom:100px">
+    <div class="sec">工作区 · dsh-harmonyos</div>
+    <div class="sg">
+      <div class="sg-head" onclick="toggleGroup(this)">
+        <div class="sg-icon">📁</div>
+        <div class="sg-name">dsh-harmonyos</div>
+        <div class="sg-count">4 会话</div>
+        <svg class="sg-arrow open" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+      </div>
+      <div class="sg-sessions">
+        <div class="si" onclick="openChat('HarmonyOS NEXT 开发')"><div class="si-dot on"></div><div class="si-info"><div class="si-title">HarmonyOS NEXT 开发</div><div class="si-meta">3 分钟前 · mimo-v2.5</div></div><div class="si-fav">⭐</div></div>
+        <div class="si" onclick="openChat('ArkUI 组件封装')"><div class="si-dot off"></div><div class="si-info"><div class="si-title">ArkUI 组件封装</div><div class="si-meta">2 小时前 · deepseek-chat</div></div><div class="si-msgs">12</div></div>
+        <div class="si" onclick="openChat('沉浸光感材质适配')"><div class="si-dot on"></div><div class="si-info"><div class="si-title">沉浸光感材质适配</div><div class="si-meta">昨天 · mimo-v2.5</div></div><div class="si-msgs">28</div></div>
+        <div class="si" onclick="openChat('DSH API 对接')"><div class="si-dot off"></div><div class="si-info"><div class="si-title">DSH API 对接</div><div class="si-meta">2 天前 · deepseek-coder</div></div><div class="si-msgs">45</div></div>
+      </div>
+    </div>
+    <div class="sec" style="margin-top:12px">工作区 · dsh-docs</div>
+    <div class="sg">
+      <div class="sg-head" onclick="toggleGroup(this)">
+        <div class="sg-icon" style="background:linear-gradient(135deg,#34d399,#059669)">📄</div>
+        <div class="sg-name">dsh-docs</div>
+        <div class="sg-count">2 会话</div>
+        <svg class="sg-arrow open" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+      </div>
+      <div class="sg-sessions">
+        <div class="si" onclick="openChat('API 文档生成')"><div class="si-dot off"></div><div class="si-info"><div class="si-title">API 文档生成</div><div class="si-meta">3 天前 · mimo-v2.5</div></div><div class="si-msgs">8</div></div>
+        <div class="si" onclick="openChat('README 重写')"><div class="si-dot off"></div><div class="si-info"><div class="si-title">README 重写</div><div class="si-meta">5 天前 · deepseek-chat</div></div><div class="si-msgs">3</div></div>
+      </div>
+    </div>
+  </div>
+  <button class="fab" onclick="alert('新建会话 → session/create API')">+</button>
+  <div class="tab-wrap"><div class="tab-bar">
+    <button class="tab-item active" onclick="switchTab('workspace')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>服务器</span></button>
+    <button class="tab-item" onclick="switchTab('fav')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg><span>收藏</span></button>
+    <button class="tab-item" onclick="switchTab('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg><span>设置</span></button>
+  </div></div>
+  <div class="hi"></div>
+</div>
+
+<!-- ===== SCREEN: FAVORITES ===== -->
+<div class="screen" id="scr-fav">
+  <div class="sb"><span>14:32</span><div class="sb-r"><svg viewBox="0 0 16 16"><path d="M1 11.5L8 4l7 7.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg><svg viewBox="0 0 16 16"><rect x="1" y="6" width="3" height="8" rx="0.5" fill="currentColor" opacity="0.3"/><rect x="5" y="4" width="3" height="10" rx="0.5" fill="currentColor" opacity="0.6"/><rect x="9" y="2" width="3" height="12" rx="0.5" fill="currentColor" opacity="0.8"/><rect x="13" y="1" width="3" height="13" rx="0.5" fill="currentColor"/></svg><svg viewBox="0 0 20 16"><rect x="0.5" y="1" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1" fill="none"/><rect x="2" y="3" width="11" height="7" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/></svg></div></div>
+  <div class="tb tb-plain"><div class="tt" style="padding-left:20px">⭐ 收藏</div></div>
+  <div style="flex:1;overflow-y:auto;padding-bottom:100px">
+    <div class="sec">跨服务器收藏 · 2 项</div>
+    <div class="fav-card">
+      <div class="fav-item" onclick="openChat('HarmonyOS NEXT 开发')"><div class="fav-icon" style="background:linear-gradient(135deg,#4a9eff,#7c5cfc)">📁</div><div class="fav-info"><div class="fav-title">HarmonyOS NEXT 开发</div><div class="fav-server">dsh-harmonyos · mimo-v2.5 · 32 turns</div></div><div class="fav-star">⭐</div></div>
+      <div class="fav-item" onclick="openChat('沉浸光感材质适配')"><div class="fav-icon" style="background:linear-gradient(135deg,#4a9eff,#7c5cfc)">📁</div><div class="fav-info"><div class="fav-title">沉浸光感材质适配</div><div class="fav-server">dsh-harmonyos · mimo-v2.5 · 28 turns</div></div><div class="fav-star">⭐</div></div>
+    </div>
+  </div>
+  <div class="tab-wrap"><div class="tab-bar">
+    <button class="tab-item" onclick="switchTab('workspace')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>服务器</span></button>
+    <button class="tab-item active" onclick="switchTab('fav')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg><span>收藏</span></button>
+    <button class="tab-item" onclick="switchTab('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg><span>设置</span></button>
+  </div></div>
+  <div class="hi"></div>
+</div>
+
+<!-- ===== SCREEN: SETTINGS ===== -->
+<div class="screen" id="scr-settings">
+  <div class="sb"><span>14:32</span><div class="sb-r"><svg viewBox="0 0 16 16"><path d="M1 11.5L8 4l7 7.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg><svg viewBox="0 0 16 16"><rect x="1" y="6" width="3" height="8" rx="0.5" fill="currentColor" opacity="0.3"/><rect x="5" y="4" width="3" height="10" rx="0.5" fill="currentColor" opacity="0.6"/><rect x="9" y="2" width="3" height="12" rx="0.5" fill="currentColor" opacity="0.8"/><rect x="13" y="1" width="3" height="13" rx="0.5" fill="currentColor"/></svg><svg viewBox="0 0 20 16"><rect x="0.5" y="1" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1" fill="none"/><rect x="2" y="3" width="11" height="7" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/></svg></div></div>
+  <div class="tb tb-plain"><div class="tt" style="padding-left:20px">⚙️ 应用设置</div></div>
+  <div style="flex:1;overflow-y:auto;padding-bottom:100px">
+    <div class="sec">通用</div>
+    <div class="set-group">
+      <div class="set-item"><div class="set-icon" style="background:rgba(74,158,255,0.12)">🌐</div><div class="set-label">语言</div><div class="set-val">简体中文</div><div class="set-arrow">›</div></div>
+      <div class="set-item"><div class="set-icon" style="background:rgba(167,139,250,0.12)">🎨</div><div class="set-label">外观</div><div class="set-val">深色</div><div class="set-arrow">›</div></div>
+      <div class="set-item"><div class="set-icon" style="background:rgba(52,211,153,0.12)">🔤</div><div class="set-label">字体大小</div><div class="set-val">标准</div><div class="set-arrow">›</div></div>
+    </div>
+    <div class="sec">服务器连接</div>
+    <div class="set-group">
+      <div class="set-item" onclick="openServerDetail()"><div class="set-icon" style="background:rgba(74,158,255,0.12)">🖥️</div><div class="set-label">dsh-server</div><div style="display:flex;align-items:center;gap:6px"><div class="sd-dot on"></div><div class="set-val" style="color:var(--grn)">已连接</div></div><div class="set-arrow">›</div></div>
+    </div>
+    <div class="sec">关于</div>
+    <div class="set-group">
+      <div class="set-item"><div class="set-icon" style="background:rgba(251,191,36,0.12)">ℹ️</div><div class="set-label">版本</div><div class="set-val">1.0.0 (Build 1)</div></div>
+      <div class="set-item"><div class="set-icon" style="background:rgba(239,68,68,0.12)">📜</div><div class="set-label">开源许可</div><div class="set-arrow">›</div></div>
+    </div>
+  </div>
+  <div class="tab-wrap"><div class="tab-bar">
+    <button class="tab-item" onclick="switchTab('workspace')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>服务器</span></button>
+    <button class="tab-item" onclick="switchTab('fav')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg><span>收藏</span></button>
+    <button class="tab-item active" onclick="switchTab('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg><span>设置</span></button>
+  </div></div>
+  <div class="hi"></div>
+</div>
+
+<!-- ===== SCREEN: SERVER DETAIL ===== -->
+<div class="screen" id="scr-server">
+  <div class="sb"><span>14:32</span><div class="sb-r"><svg viewBox="0 0 16 16"><rect x="1" y="6" width="3" height="8" rx="0.5" fill="currentColor" opacity="0.3"/><rect x="5" y="4" width="3" height="10" rx="0.5" fill="currentColor" opacity="0.6"/><rect x="9" y="2" width="3" height="12" rx="0.5" fill="currentColor" opacity="0.8"/><rect x="13" y="1" width="3" height="13" rx="0.5" fill="currentColor"/></svg><svg viewBox="0 0 20 16"><rect x="0.5" y="1" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1" fill="none"/><rect x="2" y="3" width="11" height="7" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/></svg></div></div>
+  <div class="tb">
+    <button class="bt" onclick="goBack()"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="tt">dsh-server 设置</div>
+    <div style="width:44px"></div>
+  </div>
+  <div class="sd-layout">
+    <div class="sd-nav">
+      <button class="sd-nav-btn active" onclick="switchSDTab(this,'sd-general')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>通用</button>
+      <button class="sd-nav-btn" onclick="switchSDTab(this,'sd-models')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>模型</button>
+      <button class="sd-nav-btn" onclick="switchSDTab(this,'sd-agent')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Agent</button>
+    </div>
+    <div class="sd-content">
+      <div id="sd-general">
+        <div class="sd-card"><h4>连接状态</h4><div class="sd-row"><span class="k">状态</span><span class="v"><span class="sd-dot on"></span>已连接</span></div><div class="sd-row"><span class="k">地址</span><span class="v" style="font-family:monospace;font-size:12px">http://192.168.1.100:30080</span></div><div class="sd-row"><span class="k">工作区</span><span class="v">dsh-harmonyos</span></div></div>
+        <div class="sd-card"><h4>权限预设</h4><div class="set-desc">权限预设是每会话独立的设置，在对话界面的输入工具行中切换。</div></div>
+      </div>
+      <div id="sd-models" style="display:none">
+        <div class="sd-card"><h4>当前模型</h4><div class="sd-row"><span class="k">模型</span><span class="v" style="color:var(--blu)">mimo-v2.5</span></div><div class="sd-row"><span class="k">上下文窗口</span><span class="v">128K tokens</span></div></div>
+        <div class="sd-card"><h4>可用模型</h4><div class="sd-model-list">
+          <div class="sd-model-item"><div class="sd-model-check sel"></div><div><div style="color:var(--t1);font-weight:500">mimo-v2.5</div><div style="font-size:11px;color:var(--t3);margin-top:2px">推荐 · 128K context</div></div></div>
+          <div class="sd-model-item"><div class="sd-model-check"></div><div><div style="color:var(--t1)">deepseek-chat</div><div style="font-size:11px;color:var(--t3);margin-top:2px">通用 · 64K context</div></div></div>
+          <div class="sd-model-item"><div class="sd-model-check"></div><div><div style="color:var(--t1)">deepseek-coder</div><div style="font-size:11px;color:var(--t3);margin-top:2px">代码 · 64K context</div></div></div>
+          <div class="sd-model-item"><div class="sd-model-check"></div><div><div style="color:var(--t1)">deepseek-reasoner</div><div style="font-size:11px;color:var(--t3);margin-top:2px">推理 · 32K context</div></div></div>
+        </div></div>
+      </div>
+      <div id="sd-agent" style="display:none">
+        <div class="sd-card"><h4>当前 Agent 预设</h4><div class="sd-row"><span class="k">预设</span><span class="v" style="color:var(--blu)">Default</span></div></div>
+        <div class="sd-card"><h4>可用预设</h4><div class="sd-model-list">
+          <div class="sd-model-item"><div class="sd-model-check sel"></div><div><div style="color:var(--t1);font-weight:500">Default</div><div style="font-size:11px;color:var(--t3);margin-top:2px">平衡的通用预设</div></div></div>
+          <div class="sd-model-item"><div class="sd-model-check"></div><div><div style="color:var(--t1)">Coder</div><div style="font-size:11px;color:var(--t3);margin-top:2px">代码优先，高权限</div></div></div>
+          <div class="sd-model-item"><div class="sd-model-check"></div><div><div style="color:var(--t1)">Research</div><div style="font-size:11px;color:var(--t3);margin-top:2px">只读分析，最小权限</div></div></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN: CHAT ===== -->
+<div class="screen" id="scr-chat">
+  <div class="sb"><span>14:32</span><div class="sb-r"><svg viewBox="0 0 16 16"><rect x="1" y="6" width="3" height="8" rx="0.5" fill="currentColor" opacity="0.3"/><rect x="5" y="4" width="3" height="10" rx="0.5" fill="currentColor" opacity="0.6"/><rect x="9" y="2" width="3" height="12" rx="0.5" fill="currentColor" opacity="0.8"/><rect x="13" y="1" width="3" height="13" rx="0.5" fill="currentColor"/></svg><svg viewBox="0 0 20 16"><rect x="0.5" y="1" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1" fill="none"/><rect x="2" y="3" width="11" height="7" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/></svg></div></div>
+  <div class="tb">
+    <button class="bt" onclick="goBack()"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="tt" id="chat-title">HarmonyOS NEXT 开发</div>
+    <button class="bt" onclick="toggleMenu(event,'mm-main')"><svg width="20" height="20" viewBox="0 0 20 20" fill="var(--t2)"><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg></button>
+  </div>
+  <div class="msgs" id="msgs">
+    <div class="mz"><span>新会话已创建 · mimo-v2.5</span></div>
+    <div class="ur"><div class="bu">帮我分析一下 ArkUI 的声明式 UI 语法和 React 的 JSX 有什么异同？</div></div>
+    <div class="as"><div class="av">🤖</div><div class="ct">
+      <p>好的，我来对比一下 <strong>ArkUI（ArkTS）</strong>和 <strong>React（JSX）</strong>的声明式 UI 语法。</p>
+      <div class="tc"><div class="tch"><div class="tci r">📄</div><span class="tcn">read_file</span></div><div class="tcp">entry/src/main/ets/pages/Index.ets</div>
+        <div class="tcc"><span class="kw">@Entry</span>
+<span class="kw">@Component</span>
+<span class="kw">struct</span> <span class="fn">Index</span> {
+  <span class="kw">@State</span> message: <span class="fn">string</span> = <span class="st">'Hello World'</span>
+
+  <span class="fn">build</span>() {
+    <span class="fn">Column</span>() {
+      <span class="fn">Text</span>(<span class="kw">this</span>.message)
+        .<span class="fn">fontSize</span>(<span class="st">50</span>)
+        .<span class="fn">fontWeight</span>(<span class="fn">FontWeight</span>.Bold)
+    }
+  }
+}</div>
+        <div class="tcs"><div class="dot"></div>已完成 · 0.3s</div>
+      </div>
+      <p><strong>核心相似点</strong>：</p>
+      <ul><li>都是<strong>声明式 UI</strong></li><li>都支持<strong>状态驱动</strong>：<code>@State</code> vs <code>useState</code></li><li>都有<strong>组件化</strong>思想</li></ul>
+      <p><strong>关键差异</strong>：</p>
+      <ul><li>ArkUI 用<strong>链式装饰器</strong>，React 用 props</li><li>ArkUI 有<strong>内置生命周期</strong>装饰器，React 用 Hooks</li></ul>
+    </div></div>
+    <div class="ur"><div class="bu">能帮我创建一个自定义组件吗？</div></div>
+    <div class="as"><div class="av">🤖</div><div class="ct">
+      <p>当然可以：</p>
+      <div class="tc"><div class="tch"><div class="tci w">✏️</div><span class="tcn">write_file</span></div><div class="tcp">components/CountdownTimer.ets</div>
+        <div class="tcc"><span class="kw">@Component</span>
+<span class="kw">export struct</span> <span class="fn">CountdownTimer</span> {
+  <span class="kw">@Prop</span> targetSeconds: <span class="fn">number</span> = <span class="st">60</span>
+  <span class="kw">@State</span> remaining: <span class="fn">number</span> = <span class="st">0</span>
+  <span class="kw">@State</span> isRunning: <span class="fn">boolean</span> = <span class="st">false</span>
+
+  <span class="fn">aboutToAppear</span>() {
+    <span class="kw">this</span>.remaining = <span class="kw">this</span>.targetSeconds
+  }</div>
+        <div class="tcs"><div class="dot"></div>已完成 · 0.8s</div>
+      </div>
+      <p>装饰器工作原理：<span class="cr"></span></p>
+    </div></div>
+  </div>
+  <div class="approval" id="approvalCard">
+    <div class="app-h"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1L1 14h14L8 1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="12" r="0.75" fill="currentColor"/></svg><span>Agent 请求权限</span></div>
+    <div class="app-path">bash · hvigorw assembleHap</div>
+    <div class="app-a"><button onclick="hideApproval()">拒绝</button><button class="ok" onclick="hideApproval()">允许</button></div>
+  </div>
+  <div class="comp">
+    <div class="card">
+      <textarea class="ip" id="inp" rows="1" placeholder="输入消息..." oninput="ag(this);usb()"></textarea>
+      <div class="tr">
+        <div class="tl">
+          <button class="tb2" title="附加文件"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13.5 7.5l-6 6a3.5 3.5 0 01-5-5l6-6a2 2 0 013 3l-6 6a.5.5 0 01-.7-.7l5.5-5.5"/></svg></button>
+          <button class="tb2 pm" id="pb" onclick="toggleMenu(event,'mm-perm')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5l5.5 3v4c0 3-2.5 5-5.5 6-3-1-5.5-3-5.5-6v-4L8 1.5z" stroke-linejoin="round"/><path d="M6 8l1.5 1.5L10 6.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="permLabel">工作区</span><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 3.5L5 6 7.5 3.5"/></svg></button>
+        </div>
+        <div class="trr">
+          <button class="tb2 mp" id="mb" onclick="toggleMenu(event,'mm-model')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7" r="3"/><path d="M7 1v2M7 11v2M1 7h2M11 7h2"/></svg><span id="ml">mimo-v2.5</span><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 3.5L5 6 7.5 3.5"/></svg></button>
+          <div class="ctx"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="7" cy="7" r="5.5"/><path d="M7 3v4l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>32%</div>
+          <button class="sbtn off" id="sbtn" onclick="doSend()"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.31 0.98a1.2 1.2 0 011.38.54l4.73 6.7a1.2 1.2 0 01-.4 1.7l-.3.17V14a1.2 1.2 0 01-1.8 1l-5-3.2a1.2 1.2 0 01-.3-1.8l.3-.17V8.4L2.8 10.3a1.2 1.2 0 01-1.8-1V3.5a1.2 1.2 0 011.6-1.1l4.7 3.3V1.5a1.2 1.2 0 011.01-1.18z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="sts"><span>32 turns</span><div class="sp"></div><span>1.2k steps</span><div class="sp"></div><span>2.4s TTFT</span></div>
+  <div class="hi"></div>
+</div>
+
+<!-- ===== Dropdown Overlay ===== -->
+<div class="dov" id="dov" onclick="cam()">
+  <div class="dm" id="mm-perm" style="display:none">
+    <div class="dh">权限预设</div>
+    <button class="di" onclick="sp('仅可查看',this)"><div class="perm-dot r">👁</div><span>仅可查看</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--blu)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di sel" onclick="sp('工作区',this)"><div class="perm-dot w">✏️</div><span>工作区内修改</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--blu)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di" onclick="sp('完全权限',this)"><div class="perm-dot f">🔓</div><span>完全权限</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--blu)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+  </div>
+  <div class="dm" id="mm-model" style="display:none">
+    <div class="dh">选择模型</div>
+    <button class="di sel" onclick="sm('mimo-v2.5',this)"><span>mimo-v2.5</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--blu)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di" onclick="sm('deepseek-chat',this)"><span>deepseek-chat</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--blu)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di" onclick="sm('deepseek-coder',this)"><span>deepseek-coder</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--blu)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di" onclick="sm('deepseek-reasoner',this)"><span>deepseek-reasoner</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--blu)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <div class="dsep"></div>
+    <button class="di" onclick="sm('auto',this)"><span style="color:var(--t3)">自动选择</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--blu)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+  </div>
+  <div class="dm" id="mm-main" style="display:none">
+    <div class="dh">对话设置</div>
+    <button class="di"><span>对话视图</span><span style="margin-left:auto;color:var(--t3);font-size:13px">标准 →</span></button>
+    <button class="di"><span>输入行为</span><span style="margin-left:auto;color:var(--t3);font-size:13px">Enter 发送 →</span></button>
+    <div class="dsep"></div>
+    <button class="di"><span>重命名会话</span></button>
+    <button class="di"><span>分叉会话</span></button>
+    <button class="di"><span>导出会话</span></button>
+    <div class="dsep"></div>
+    <button class="di" style="color:var(--ylw)"><span>⭐ 收藏</span></button>
+  </div>
+</div>
+
+</div><!-- end .ph -->
+
+<script>
+let currentTab='workspace',history=[];
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function switchTab(tab){currentTab=tab;history=[];show('scr-'+tab);updateTabBar(tab)}
+function updateTabBar(tab){document.querySelectorAll('.tab-item').forEach((t,i)=>{t.classList.remove('active');if(tab==='workspace'&&i===0)t.classList.add('active');if(tab==='fav'&&i===1)t.classList.add('active');if(tab==='settings'&&i===2)t.classList.add('active')})}
+function openChat(title){history.push(document.querySelector('.screen.active').id);document.getElementById('chat-title').textContent=title;show('scr-chat');setTimeout(()=>{const m=document.getElementById('msgs');m.scrollTop=m.scrollHeight},50)}
+function openServerDetail(){history.push('scr-settings');show('scr-server')}
+function goBack(){const prev=history.pop();if(prev)show(prev);else switchTab(currentTab)}
+function toggleGroup(el){el.querySelector('.sg-arrow').classList.toggle('open');el.nextElementSibling.classList.toggle('hidden')}
+function switchSDTab(btn,id){document.querySelectorAll('.sd-nav-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');['sd-general','sd-models','sd-agent'].forEach(s=>{document.getElementById(s).style.display=s===id?'block':'none'})}
+function ag(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,160)+'px'}
+function usb(){const i=document.getElementById('inp'),b=document.getElementById('sbtn');b.className=i.value.trim()?'sbtn on':'sbtn off'}
+function toggleMenu(e,id){e.stopPropagation();cam();const m=document.getElementById(id);if(m.style.display!=='block'){document.getElementById('dov').classList.add('show');m.style.display='block';const r=e.currentTarget.getBoundingClientRect(),f=document.querySelector('.ph').getBoundingClientRect();if(id==='mm-perm'){m.style.bottom=(f.bottom-r.top+8)+'px';m.style.left=(r.left-f.left)+'px';m.style.right='auto';m.style.top='auto'}else if(id==='mm-model'){m.style.bottom=(f.bottom-r.top+8)+'px';m.style.right=(f.right-r.right+8)+'px';m.style.left='auto';m.style.top='auto'}else{m.style.top=(r.bottom-f.top+8)+'px';m.style.right=(f.right-r.right)+'px';m.style.left='auto';m.style.bottom='auto'}}}
+function cam(){document.getElementById('dov').classList.remove('show');document.querySelectorAll('.dm').forEach(m=>m.style.display='none')}
+function sp(t,el){document.getElementById('permLabel').textContent=t;document.querySelectorAll('#mm-perm .di').forEach(i=>i.classList.remove('sel'));el.classList.add('sel');cam()}
+function sm(n,el){document.getElementById('ml').textContent=n;document.querySelectorAll('#mm-model .di').forEach(i=>i.classList.remove('sel'));el.classList.add('sel');cam()}
+function doSend(){const i=document.getElementById('inp'),t=i.value.trim();if(!t)return;const area=document.getElementById('msgs');const u=document.createElement('div');u.className='ur';u.innerHTML='<div class="bu">'+t.replace(/</g,'&lt;')+'</div>';area.appendChild(u);i.value='';ag(i);usb();area.scrollTop=area.scrollHeight;setTimeout(()=>{const m=document.createElement('div');m.className='as';m.innerHTML='<div class="av">🤖</div><div class="ct"><p>正在思考中...<span class="cr"></span></p></div>';area.appendChild(m);area.scrollTop=area.scrollHeight},800)}
+function hideApproval(){document.getElementById('approvalCard').classList.remove('show')}
+setTimeout(()=>{if(document.getElementById('scr-chat').classList.contains('active')){document.getElementById('approvalCard').classList.add('show');document.getElementById('msgs').scrollTop=document.getElementById('msgs').scrollHeight}},100);
+window.addEventListener('load',()=>{const m=document.getElementById('msgs');if(m)m.scrollTop=m.scrollHeight});
+</script>
+</body>
+</html>

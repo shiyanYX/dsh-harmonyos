@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>DSH HarmonyOS - Chat</title>
+<style>
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #121218;
+    --bg-card: #1a1a24;
+    --bg-card-hover: #22222e;
+    --bg-surface: #16161f;
+    --bg-user-bubble: #1e3a5f;
+    --bg-tool-card: #151520;
+    --text-primary: #e8e8ed;
+    --text-secondary: #9898a6;
+    --text-tertiary: #5c5c6e;
+    --text-caption: #4a4a5a;
+    --accent-blue: #4a9eff;
+    --accent-green: #34d399;
+    --accent-yellow: #fbbf24;
+    --accent-red: #ef4444;
+    --accent-purple: #a78bfa;
+    --border-subtle: rgba(255,255,255,0.06);
+    --border-medium: rgba(255,255,255,0.1);
+    --immersive-glow: radial-gradient(ellipse at 50% 0%, rgba(74,158,255,0.12) 0%, transparent 70%);
+    --send-gradient: linear-gradient(135deg, #4a9eff 0%, #3b82f6 100%);
+    --pill-bg: rgba(255,255,255,0.04);
+    --pill-border: rgba(255,255,255,0.08);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'PingFang SC', system-ui, sans-serif;
+    background: var(--bg-primary); color: var(--text-primary);
+    overflow: hidden; height: 100vh; width: 100vw;
+    display: flex; justify-content: center; align-items: center;
+  }
+  .phone { width: 390px; height: 844px; background: var(--bg-primary); border-radius: 44px; overflow: hidden; box-shadow: 0 0 0 2px rgba(255,255,255,0.08), 0 25px 80px rgba(0,0,0,0.6); display: flex; flex-direction: column; }
+
+  /* Status Bar */
+  .sb { height: 54px; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 32px 8px; font-size: 15px; font-weight: 600; }
+  .sb-icons { display: flex; gap: 6px; align-items: center; }
+  .sb-icons svg { width: 16px; height: 16px; fill: var(--text-primary); }
+
+  /* Title Bar */
+  .tb { height: 52px; display: flex; align-items: center; padding: 0 8px; background: var(--immersive-glow); position: relative; z-index: 10; }
+  .tb .btn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 22px; border: none; background: none; }
+  .tb .btn:active { background: rgba(255,255,255,0.08); }
+  .tb .btn svg { width: 22px; height: 22px; stroke: var(--text-primary); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .tb .title { flex: 1; text-align: center; font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+
+  /* Messages */
+  .msgs { flex: 1; overflow-y: auto; padding: 8px 16px 12px; display: flex; flex-direction: column; gap: 16px; }
+  .msgs::-webkit-scrollbar { width: 3px; }
+  .msgs::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .sys { text-align: center; padding: 8px 0; }
+  .sys span { font-size: 13px; color: var(--text-tertiary); background: rgba(255,255,255,0.03); padding: 4px 14px; border-radius: 12px; border: 1px solid var(--border-subtle); }
+  .usr { display: flex; justify-content: flex-end; }
+  .usr .bub { max-width: 78%; background: var(--bg-user-bubble); border-radius: 20px 20px 4px 20px; padding: 12px 16px; font-size: 15px; line-height: 22px; word-break: break-word; }
+  .ast { display: flex; gap: 10px; align-items: flex-start; }
+  .ast .av { width: 30px; height: 30px; border-radius: 15px; background: linear-gradient(135deg, #4a9eff, #7c5cfc); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; margin-top: 2px; }
+  .ast .ct { flex: 1; min-width: 0; font-size: 15px; line-height: 23px; word-break: break-word; }
+  .ast .ct p { margin-bottom: 10px; } .ast .ct p:last-child { margin-bottom: 0; }
+  .ast .ct code { background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', monospace; font-size: 13px; color: var(--accent-blue); }
+  .ast .ct strong { font-weight: 600; }
+  .ast .ct ul, .ast .ct ol { margin: 8px 0; padding-left: 20px; }
+  .ast .ct li { margin: 4px 0; line-height: 21px; }
+
+  /* Tool Card */
+  .tc { background: var(--bg-tool-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px 14px; margin: 10px 0; }
+  .tc-h { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .tc-i { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .tc-i.r { background: rgba(74,158,255,0.15); color: var(--accent-blue); }
+  .tc-i.w { background: rgba(52,211,153,0.15); color: var(--accent-green); }
+  .tc-n { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+  .tc-p { font-size: 12px; font-family: monospace; color: var(--text-tertiary); margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tc-c { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px 12px; font-family: monospace; font-size: 12px; line-height: 17px; color: var(--text-secondary); overflow-x: auto; white-space: pre; }
+  .tc-c .kw { color: var(--accent-purple); } .tc-c .fn { color: var(--accent-blue); } .tc-c .str { color: var(--accent-green); }
+  .tc-s { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; }
+  .tc-s.done { color: var(--accent-green); }
+  .tc-s .dot { width: 6px; height: 6px; border-radius: 3px; background: currentColor; }
+
+  /* Cursor */
+  .cur { display: inline-block; width: 2px; height: 18px; background: var(--accent-blue); border-radius: 1px; animation: blink 1s ease-in-out infinite; vertical-align: text-bottom; margin-left: 2px; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Composer */
+  .comp { padding: 0 12px 8px; display: flex; flex-direction: column; align-items: center; }
+  .card { width: 100%; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 20px; overflow: hidden; transition: border-color 0.2s; }
+  .card:focus-within { border-color: rgba(74,158,255,0.3); }
+  .inp { width: 100%; min-height: 42px; max-height: 160px; padding: 12px 16px 4px; background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 15px; line-height: 22px; font-family: inherit; resize: none; }
+  .inp::placeholder { color: var(--text-tertiary); }
+
+  /* Tool Row */
+  .tr { display: flex; align-items: center; padding: 4px 8px 8px; gap: 2px; }
+  .tl { display: flex; align-items: center; gap: 2px; flex: 1; }
+  .t-right { display: flex; align-items: center; gap: 2px; }
+  .tb2 { height: 32px; min-width: 32px; display: flex; align-items: center; justify-content: center; padding: 0 8px; border: none; background: transparent; color: var(--text-secondary); border-radius: 16px; cursor: pointer; font-size: 13px; font-family: inherit; transition: all 0.15s; gap: 4px; white-space: nowrap; }
+  .tb2:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+  .tb2 svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .tb2.perm { color: var(--accent-yellow); }
+  .tb2.mp { background: var(--pill-bg); border: 1px solid var(--pill-border); padding: 0 10px; gap: 5px; font-weight: 500; }
+  .tb2.mp:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: var(--text-primary); }
+  .cm { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-tertiary); padding: 0 6px; }
+  .cm svg { width: 14px; height: 14px; }
+  .sb2 { width: 32px; height: 32px; border-radius: 16px; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+  .sb2.on { background: var(--send-gradient); box-shadow: 0 2px 12px rgba(74,158,255,0.3); }
+  .sb2.on:hover { box-shadow: 0 2px 18px rgba(74,158,255,0.45); transform: scale(1.05); }
+  .sb2.off { background: rgba(255,255,255,0.04); cursor: default; }
+  .sb2 svg { width: 16px; height: 16px; }
+  .sb2.on::after { content: ''; position: absolute; inset: -4px; border-radius: 20px; background: radial-gradient(circle, rgba(74,158,255,0.2) 0%, transparent 70%); animation: pl 2s ease-in-out infinite; pointer-events: none; }
+  @keyframes pl { 0%,100%{opacity:0.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
+
+  /* Stats */
+  .st { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 8px 16px 4px; font-size: 12px; color: var(--text-caption); }
+  .st .sp { width: 3px; height: 3px; border-radius: 50%; background: var(--text-caption); margin: 0 4px; }
+
+  /* Home */
+  .hi { height: 34px; display: flex; align-items: center; justify-content: center; }
+  .hi .bar { width: 134px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.15); }
+
+  /* Dropdown */
+  .dov { display: none; position: fixed; inset: 0; z-index: 100; }
+  .dov.show { display: block; }
+  .dm { position: absolute; background: #1e1e2a; border: 1px solid var(--border-medium); border-radius: 14px; padding: 6px; min-width: 200px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); z-index: 101; animation: mi 0.15s ease-out; }
+  @keyframes mi { from{opacity:0;transform:translateY(8px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+  .di { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-size: 14px; color: var(--text-secondary); transition: all 0.12s; border: none; background: transparent; width: 100%; text-align: left; font-family: inherit; }
+  .di:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+  .di.sel { color: var(--accent-blue); }
+  .di .g { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .di .ck { margin-left: auto; width: 16px; height: 16px; opacity: 0; }
+  .di.sel .ck { opacity: 1; }
+  .dsep { height: 1px; background: var(--border-subtle); margin: 4px 8px; }
+  .dh { padding: 6px 12px 4px; font-size: 11px; font-weight: 600; color: var(--text-caption); text-transform: uppercase; letter-spacing: 0.5px; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="sb">
+    <span>14:32</span>
+    <div class="sb-icons">
+      <svg viewBox="0 0 16 16"><path d="M1 11.5L8 4l7 7.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 10L8 5.5 13 10" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+      <svg viewBox="0 0 16 16"><rect x="1" y="6" width="3" height="8" rx="0.5" fill="currentColor" opacity="0.3"/><rect x="5" y="4" width="3" height="10" rx="0.5" fill="currentColor" opacity="0.6"/><rect x="9" y="2" width="3" height="12" rx="0.5" fill="currentColor" opacity="0.8"/><rect x="13" y="1" width="3" height="13" rx="0.5" fill="currentColor"/></svg>
+      <svg viewBox="0 0 20 16"><rect x="0.5" y="1" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1" fill="none"/><rect x="2" y="3" width="11" height="7" rx="1" fill="currentColor"/><rect x="17" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/></svg>
+    </div>
+  </div>
+
+  <div class="tb">
+    <button class="btn"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="title">HarmonyOS NEXT 开发</div>
+    <button class="btn" onclick="toggleMenu(event,'mm')">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="var(--text-secondary)"><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg>
+    </button>
+  </div>
+
+  <div class="msgs" id="msgs">
+    <div class="sys"><span>新会话已创建 · mimo-v2.5</span></div>
+    <div class="usr"><div class="bub">帮我分析一下 ArkUI 的声明式 UI 语法和 React 的 JSX 有什么异同？</div></div>
+    <div class="ast">
+      <div class="av">🤖</div>
+      <div class="ct">
+        <p>好的，我来对比一下 <strong>ArkUI（ArkTS）</strong>和 <strong>React（JSX）</strong>的声明式 UI 语法。让我先看一下项目的相关代码：</p>
+        <div class="tc">
+          <div class="tc-h"><div class="tc-i r">📄</div><span class="tc-n">read_file</span></div>
+          <div class="tc-p">entry/src/main/ets/pages/Index.ets</div>
+          <div class="tc-c"><span class="kw">@Entry</span>
+<span class="kw">@Component</span>
+<span class="kw">struct</span> <span class="fn">Index</span> {
+  <span class="kw">@State</span> message: <span class="fn">string</span> = <span class="str">'Hello World'</span>
+
+  <span class="fn">build</span>() {
+    <span class="fn">Column</span>() {
+      <span class="fn">Text</span>(<span class="kw">this</span>.message)
+        .<span class="fn">fontSize</span>(<span class="str">50</span>)
+        .<span class="fn">fontWeight</span>(<span class="fn">FontWeight</span>.Bold)
+    }
+    .<span class="fn">width</span>(<span class="str">'100%'</span>)
+    .<span class="fn">height</span>(<span class="str">'100%'</span>)
+  }
+}</div>
+          <div class="tc-s done"><div class="dot"></div>已完成 · 0.3s</div>
+        </div>
+        <p>两者的<strong>核心相似点</strong>：</p>
+        <ul>
+          <li>都是<strong>声明式 UI</strong>：用描述性语法定义 UI 结构，框架负责渲染和更新</li>
+          <li>都支持<strong>状态驱动</strong>：<code>@State</code> vs <code>useState</code></li>
+          <li>都有<strong>组件化</strong>思想：<code>@Component struct</code> vs <code>function Component()</code></li>
+        </ul>
+        <p><strong>关键差异</strong>：</p>
+        <ul>
+          <li>ArkUI 是<strong>类型安全</strong>的 TypeScript 超集</li>
+          <li>ArkUI 用<strong>链式装饰器</strong>（<code>.fontSize().fontWeight()</code>），React 用 props</li>
+          <li>ArkUI 有<strong>内置生命周期</strong>装饰器，React 用 Hooks</li>
+        </ul>
+      </div>
+    </div>
+    <div class="usr"><div class="bub">那鸿蒙的组件装饰器系统具体是怎么工作的？能帮我创建一个自定义组件吗？</div></div>
+    <div class="ast">
+      <div class="av">🤖</div>
+      <div class="ct">
+        <p>当然可以。鸿蒙的装饰器系统是 ArkUI 的核心机制。让我来创建一个实用的自定义组件：</p>
+        <div class="tc">
+          <div class="tc-h"><div class="tc-i w">✏️</div><span class="tc-n">write_file</span></div>
+          <div class="tc-p">entry/src/main/ets/components/CountdownTimer.ets</div>
+          <div class="tc-c"><span class="kw">@Component</span>
+<span class="kw">export struct</span> <span class="fn">CountdownTimer</span> {
+  <span class="kw">@Prop</span> targetSeconds: <span class="fn">number</span> = <span class="str">60</span>
+  <span class="kw">@State</span> remaining: <span class="fn">number</span> = <span class="str">0</span>
+  <span class="kw">@State</span> isRunning: <span class="fn">boolean</span> = <span class="str">false</span>
+  <span class="kw">@Link</span> onComplete: <span class="fn">() => void</span>
+
+  <span class="fn">aboutToAppear</span>() {
+    <span class="kw">this</span>.remaining = <span class="kw">this</span>.targetSeconds
+  }</div>
+          <div class="tc-s done"><div class="dot"></div>已完成 · 0.8s</div>
+        </div>
+        <p>装饰器工作原理：<span class="cur"></span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="comp">
+    <div class="card">
+      <textarea class="inp" id="inp" rows="1" placeholder="输入消息..." oninput="ag(this);usb()"></textarea>
+      <div class="tr">
+        <div class="tl">
+          <button class="tb2" title="附加文件"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13.5 7.5l-6 6a3.5 3.5 0 01-5-5l6-6a2 2 0 013 3l-6 6a.5.5 0 01-.7-.7l5.5-5.5"/></svg></button>
+          <button class="tb2 perm" id="pb" onclick="tm(event,'mp')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5l5.5 3v4c0 3-2.5 5-5.5 6-3-1-5.5-3-5.5-6v-4L8 1.5z" stroke-linejoin="round"/><path d="M6 8l1.5 1.5L10 6.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            工作区
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 3.5L5 6 7.5 3.5"/></svg>
+          </button>
+        </div>
+        <div class="t-right">
+          <button class="tb2 mp" id="mb" onclick="tm(event,'mm2')">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7" r="3"/><path d="M7 1v2M7 11v2M1 7h2M11 7h2"/></svg>
+            <span id="ml">mimo-v2.5</span>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 3.5L5 6 7.5 3.5"/></svg>
+          </button>
+          <div class="cm"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="7" cy="7" r="5.5"/><path d="M7 3v4l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>32%</div>
+          <button class="sb2 off" id="sb" onclick="send()"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.31 0.98a1.2 1.2 0 011.38.54l4.73 6.7a1.2 1.2 0 01-.4 1.7l-.3.17V14a1.2 1.2 0 01-1.8 1l-5-3.2a1.2 1.2 0 01-.3-1.8l.3-.17V8.4L2.8 10.3a1.2 1.2 0 01-1.8-1V3.5a1.2 1.2 0 011.6-1.1l4.7 3.3V1.5a1.2 1.2 0 011.01-1.18z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="st">
+    <span>32 turns</span><div class="sp"></div><span>1.2k steps</span><div class="sp"></div><span>2.4s TTFT</span>
+  </div>
+  <div class="hi"><div class="bar"></div></div>
+</div>
+
+<div class="dov" id="dov" onclick="cam()">
+  <div class="dm" id="mp" style="display:none">
+    <div class="dh">权限预设</div>
+    <button class="di" onclick="sp('仅可查看',this)"><div class="g">👁</div><span>仅可查看</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di sel" onclick="sp('工作区',this)"><div class="g">✏️</div><span>工作区内修改</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di" onclick="sp('完全权限',this)"><div class="g">🔓</div><span>完全权限</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+  </div>
+  <div class="dm" id="mm2" style="display:none">
+    <div class="dh">选择模型</div>
+    <button class="di sel" onclick="sm('mimo-v2.5',this)"><span>mimo-v2.5</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di" onclick="sm('deepseek-chat',this)"><span>deepseek-chat</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di" onclick="sm('deepseek-coder',this)"><span>deepseek-coder</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <button class="di" onclick="sm('deepseek-reasoner',this)"><span>deepseek-reasoner</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+    <div class="dsep"></div>
+    <button class="di" onclick="sm('auto',this)"><span style="color:var(--text-tertiary)">自动选择</span><svg class="ck" viewBox="0 0 16 16" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg></button>
+  </div>
+  <div class="dm" id="mm" style="display:none">
+    <div class="dh">对话设置</div>
+    <button class="di"><span>对话视图</span><span style="margin-left:auto;color:var(--text-tertiary);font-size:13px">标准 →</span></button>
+    <button class="di"><span>输入行为</span><span style="margin-left:auto;color:var(--text-tertiary);font-size:13px">Enter 发送 →</span></button>
+    <div class="dsep"></div>
+    <button class="di"><span>重命名会话</span></button>
+    <button class="di"><span>分叉会话</span></button>
+    <button class="di"><span>导出会话</span></button>
+    <div class="dsep"></div>
+    <button class="di" style="color:var(--accent-yellow)"><span>⭐ 收藏</span></button>
+  </div>
+</div>
+
+<script>
+function ag(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,160)+'px'}
+function usb(){const i=document.getElementById('inp'),b=document.getElementById('sb');b.className=i.value.trim()?'sb2 on':'sb2 off'}
+function tm(e,id){e.stopPropagation();cam();const m=document.getElementById(id);if(m.style.display!=='block'){document.getElementById('dov').classList.add('show');m.style.display='block';const r=e.currentTarget.getBoundingClientRect(),f=document.querySelector('.phone').getBoundingClientRect();if(id==='mp'){m.style.bottom=(f.bottom-r.top+8)+'px';m.style.left=(r.left-f.left)+'px';m.style.right='auto';m.style.top='auto'}if(id==='mm2'){m.style.bottom=(f.bottom-r.top+8)+'px';m.style.right=(f.right-r.right+8)+'px';m.style.left='auto';m.style.top='auto'}}}
+function cam(){document.getElementById('dov').classList.remove('show');document.querySelectorAll('.dm').forEach(m=>m.style.display='none')}
+function sp(t,el){document.getElementById('pb').innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5l5.5 3v4c0 3-2.5 5-5.5 6-3-1-5.5-3-5.5-6v-4L8 1.5z" stroke-linejoin="round"/><path d="M6 8l1.5 1.5L10 6.5" stroke-linecap="round" stroke-linejoin="round"/></svg> '+t+' <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 3.5L5 6 7.5 3.5"/></svg>';document.querySelectorAll('#mp .di').forEach(i=>i.classList.remove('sel'));el.classList.add('sel');cam()}
+function sm(n,el){document.getElementById('ml').textContent=n;document.querySelectorAll('#mm2 .di').forEach(i=>i.classList.remove('sel'));el.classList.add('sel');cam()}
+function send(){const i=document.getElementById('inp'),t=i.value.trim();if(!t)return;const a=document.getElementById('msgs');const u=document.createElement('div');u.className='usr';u.innerHTML='<div class="bub">'+t.replace(/</g,'&lt;')+'</div>';a.appendChild(u);i.value='';ag(i);usb();a.scrollTop=a.scrollHeight;setTimeout(()=>{const m=document.createElement('div');m.className='ast';m.innerHTML='<div class="av">🤖</div><div class="ct"><p>正在思考中...<span class="cur"></span></p></div>';a.appendChild(m);a.scrollTop=a.scrollHeight},800)}
+window.addEventListener('load',()=>{const a=document.getElementById('msgs');a.scrollTop=a.scrollHeight});
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "modelVersion": "5.0.0",
+  "description": "DSH HarmonyOS Client Entry Module",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hypium": "1.0.19"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/Workspace",
+    "pages/Favorites",
+    "pages/Settings",
+    "pages/ServerDetail",
+    "pages/Chat"
+  ]
+}
