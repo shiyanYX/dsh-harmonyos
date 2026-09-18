@@ -39,11 +39,4 @@ local.properties
 *.keystore
 *.jks
 
-# 其他项目目录（只保留 dsh-harmonyos-app）
-../2026*
-../AetherSwap/
-../NSMC-Assistant/
-../OpencodeConnector4Android/
-../midi-editor/
-../opencode2api/
-../subme/
+
