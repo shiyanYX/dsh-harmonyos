@@ -1,0 +1,14 @@
+{
+  "modelVersion": "5.0.0",
+  "dependencies": {
+    "@ohos/hvigor-ohos-plugin": "5.0.0"
+  },
+  "execution": {
+    "daemon": false,
+    "incremental": false,
+    "parallel": true
+  },
+  "logging": {
+    "level": "info"
+  }
+}

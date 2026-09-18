@@ -1,10 +1,9 @@
 {
   "apiType": "stageMode",
   "buildOption": {
-    "externalNativeOptions": {
-      "path": "./src/main/cpp/CMakeLists.txt",
-      "arguments": "",
-      "cppFlags": ""
+    "strictMode": {
+      "caseSensitiveCheck": true,
+      "useNormalizedOHMUrl": true
     }
   },
   "buildOptionSet": [
